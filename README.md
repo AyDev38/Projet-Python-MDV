@@ -50,3 +50,36 @@ Avant de pouvoir exécuter ce projet, assurez-vous d'avoir les éléments suivan
    ```
 ## Contributeurs
 Ce projet a été réalisé par Aymeric Surre et Matthieu Fanget
+
+
+## Question Alogo :
+
+1:Nombre d'épisode de chaque chaine
+cours_pytho_5421=> SELECT channel, COUNT(*) as episode_count
+cours_pytho_5421-> FROM episode
+cours_pytho_5421-> GROUP BY channel
+cours_pytho_5421-> ORDER BY episode_count DESC;
+
+      channel       | episode_count
+--------------------+---------------
+ Netflix            |           109
+ Disney+            |            30
+ Prime Video        |            27
+ ...
+
+2:Nombre d'épisode de chaque pays
+
+cours_pytho_5421=> SELECT country, COUNT(*) as episode_count
+cours_pytho_5421-> FROM episode
+cours_pytho_5421-> GROUP BY country
+cours_pytho_5421-> ORDER BY episode_count DESC;
+
+       country        | episode_count
+----------------------+---------------
+ Etats-Unis           |           353
+ France               |            76
+ Canada               |            63
+ ...
+
+ 3: Les mots les plus utilisé
+ ('the', 82), ('of', 32), ('de', 24)

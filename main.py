@@ -68,7 +68,7 @@ def save_to_sqlite(data_sorted):
     ''')
     for item in data_sorted:
         cursor.execute('''
-        INSERT INTO episode (date, country, channel, series_name, season, episode, url_episode)
+        INSERT INTO episode (date, channel, country, series_name, season, episode, url_episode)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', item)
     conn.commit()
@@ -93,20 +93,38 @@ def save_to_postgresql(data_sorted, database_url):
     ''')
     for item in data_sorted:
         cursor.execute('''
-        INSERT INTO episode (date, country, channel, series_name, season, episode, url_episode)
+        INSERT INTO episode (date, channel, country, series_name, season, episode, url_episode)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', item)
     conn.commit()
     conn.close()
 
+def get_most_common_words(data_sorted):
+    """Renvoie les 10 mots les plus courants dans les noms de séries."""
+    from collections import Counter
+    import re
+
+    # Récupère tous les noms de séries
+    series_names = [item[3] for item in data_sorted]
+
+    # Divise chaque nom de série en mots et les met en minuscules
+    words = [word.lower() for name in series_names for word in re.findall(r'\w+', name)]
+    word_counts = Counter(words)
+    return word_counts.most_common(10)
 
 def main():
     soup = fetch_web_data(BASE_URL + "calendrier_des_series.html")
     data_sorted = extract_series_info(soup)
+
+    # for item in data_sorted:
+    #     print(item)
+
     save_to_csv(data_sorted)
     save_to_sqlite(data_sorted)
     DATABASE_URL = 'postgres://cours_pytho_5421:F7XnoI1TH_KbiiwxghBE@cours-pytho-5421.postgresql.a.osc-fr1.scalingo-dbs.com:33800/cours_pytho_5421?sslmode=prefer'
     save_to_postgresql(data_sorted, DATABASE_URL)
+    most_common_words = get_most_common_words(data_sorted)
+    print(most_common_words)  # Affiche les 10 mots les plus courants
 
 
 if __name__ == "__main__":
