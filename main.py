@@ -1,5 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
+import psycopg2
+import sqlite3
+
 
 url = "https://www.spin-off.fr/calendrier_des_series.html"
 
@@ -87,6 +90,87 @@ def read_episodes(filename):
     return episodes
 
 # Test de la fonction
-episodes_data = read_episodes('data/files/episodes.csv')
-for episode in episodes_data:
-    print(episode)
+# episodes_data = read_episodes('data/files/episodes.csv')
+# for episode in episodes_data:
+#     print(episode)
+
+
+import sqlite3
+
+# Connexion à la base de données SQLite
+conn = sqlite3.connect('data/databases/database.db')
+cursor = conn.cursor()
+
+# Création de la table 'episode'
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS episode (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    channel TEXT,
+    country TEXT,
+    series_name TEXT,
+    season INTEGER,
+    episode INTEGER,
+    url_episode TEXT
+)
+''')
+
+# Insérer les données dans la table
+for item in data_sorted:
+    series_name = item[3]
+    episode_num = int(item[5])
+    season = int(item[4])
+    date = item[0]
+    country = item[1]
+    channel = item[2]
+    url_episode = serie.find('a', class_='liens')['href']
+
+    cursor.execute('''
+    INSERT INTO episode (date, country, channel, series_name, season, episode, url_episode)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (date, country, channel, series_name, season, episode_num, url_episode))
+
+# Commit des changements et fermeture de la connexion
+conn.commit()
+conn.close()
+
+
+# Remplacez ces valeurs par vos informations d'authentification Scalingo
+DATABASE_URL = 'postgres://cours_pytho_5421:F7XnoI1TH_KbiiwxghBE@cours-pytho-5421.postgresql.a.osc-fr1.scalingo-dbs.com:33800/cours_pytho_5421?sslmode=prefer'
+
+# Connexion à la base de données Scalingo
+conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+cursor = conn.cursor()
+
+# Création de la table 'episode' (si elle n'existe pas déjà)
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS episode (
+    id SERIAL PRIMARY KEY,
+    date TEXT,
+    channel TEXT,
+    country TEXT,
+    series_name TEXT,
+    season INTEGER,
+    episode INTEGER,
+    url_episode TEXT
+)
+''')
+
+# Insérer les données dans la table
+for item in data_sorted:
+    series_name = item[3]
+    episode_num = int(item[5])
+    season = int(item[4])
+    date = item[0]
+    country = item[1]
+    channel = item[2]
+    url_episode = serie.find('a', class_='liens')['href']
+
+    cursor.execute('''
+    INSERT INTO episode (date, country, channel, series_name, season, episode, url_episode)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
+    ''', (date, country, channel, series_name, season, episode_num, url_episode))
+
+# Commit des changements et fermeture de la connexion
+conn.commit()
+conn.close()
