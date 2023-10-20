@@ -27,17 +27,18 @@ for i, serie in enumerate(series_info):
 
     series_name = serie.find('a').text
     episode_details = serie.find('a', class_='liens').text
+    url_episode = serie.find('a', class_='liens')['href']
 
     # Récupération de la saison et de l'épisode
     season, episode = episode_details.split('.')
-    data.append((dates[i % len(dates)], country, channel, series_name, season, episode))
+    data.append((dates[i % len(dates)], country, channel, series_name, season, episode, "https://www.spin-off.fr/" + url_episode))
 
 # Trier les données en fonction des numéros de jour
 data_sorted = sorted(data, key=lambda x: int(''.join(filter(str.isdigit, x[0]))))
 
 # Afficher les données triées
 # for item in data_sorted:
-    # print(item)
+#     print(item)
 
 def simple_type(value):
     t = type(value).__name__
@@ -55,7 +56,7 @@ with open('data/files/episodes.csv', 'w', encoding='utf-8') as file:
         series_name = item[3]
         episode = int(item[5])
         season = int(item[4])
-        url_episode = serie.find('a', class_='liens')['href']
+        url_episode = "https://www.spin-off.fr/" + item[6]  # Utilisez l'URL de l'épisode de la liste data_sorted
         file.write(f"{series_name};{episode};{season};{url_episode} # {simple_type(series_name)} {simple_type(episode)} {simple_type(season)} {simple_type(url_episode)}\n")
 
 
@@ -95,8 +96,6 @@ def read_episodes(filename):
 #     print(episode)
 
 
-import sqlite3
-
 # Connexion à la base de données SQLite
 conn = sqlite3.connect('data/databases/database.db')
 cursor = conn.cursor()
@@ -117,18 +116,11 @@ CREATE TABLE IF NOT EXISTS episode (
 
 # Insérer les données dans la table
 for item in data_sorted:
-    series_name = item[3]
-    episode_num = int(item[5])
-    season = int(item[4])
-    date = item[0]
-    country = item[1]
-    channel = item[2]
-    url_episode = serie.find('a', class_='liens')['href']
-
+    date, country, channel, series_name, season, episode_num, url_episode = item
     cursor.execute('''
     INSERT INTO episode (date, country, channel, series_name, season, episode, url_episode)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (date, country, channel, series_name, season, episode_num, url_episode))
+    ''', (date, country, channel, series_name, season, episode_num, "https://www.spin-off.fr/" + url_episode))
 
 # Commit des changements et fermeture de la connexion
 conn.commit()
@@ -158,18 +150,11 @@ CREATE TABLE IF NOT EXISTS episode (
 
 # Insérer les données dans la table
 for item in data_sorted:
-    series_name = item[3]
-    episode_num = int(item[5])
-    season = int(item[4])
-    date = item[0]
-    country = item[1]
-    channel = item[2]
-    url_episode = serie.find('a', class_='liens')['href']
-
+    date, country, channel, series_name, season, episode_num, url_episode = item
     cursor.execute('''
     INSERT INTO episode (date, country, channel, series_name, season, episode, url_episode)
     VALUES (%s, %s, %s, %s, %s, %s, %s)
-    ''', (date, country, channel, series_name, season, episode_num, url_episode))
+    ''', (date, country, channel, series_name, season, episode_num, "https://www.spin-off.fr/" + url_episode))
 
 # Commit des changements et fermeture de la connexion
 conn.commit()
