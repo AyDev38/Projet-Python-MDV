@@ -6,7 +6,7 @@ Il s'agit d'un projet de fin de module pour un mastère en Développement Web Fu
 
 - [Prérequis](#prérequis)
 - [Installation](#installation)
-- [Contributeurs](#contributeur)
+- [Contributeurs](#contributeurs)
 
 ## Prérequis
 
