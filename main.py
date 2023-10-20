@@ -2,8 +2,10 @@ import requests
 from bs4 import BeautifulSoup
 import psycopg2
 import sqlite3
+import time
 
 BASE_URL = "https://www.spin-off.fr/"
+DATABASE_URL = "postgres://cours_pytho_5421:F7XnoI1TH_KbiiwxghBE@cours-pytho-5421.postgresql.a.osc-fr1.scalingo-dbs.com:33800/cours_pytho_5421?sslmode=prefer"
 
 def fetch_web_data(url):
     """Récupère les données du site web."""
@@ -112,20 +114,58 @@ def get_most_common_words(data_sorted):
     word_counts = Counter(words)
     return word_counts.most_common(10)
 
+def extract_episode_duration(data_sorted, base_url, channel_filter="Apple TV+"):
+    """Extrait la durée des épisodes pour une chaîne spécifique."""
+    filtered_episodes = [item for item in data_sorted if item[2] == channel_filter]
+    
+    for episode in filtered_episodes:
+        url_episode = episode[6]
+        soup = fetch_web_data(url_episode)
+        
+        # Cible la div contenant la durée
+        duration_div = soup.find('div', class_='episode_infos_episode_format')
+        if duration_div:
+            # Ici, nous extrayons le texte, le nettoyons et le joignons pour obtenir un format "25 minutes".
+            duration = ' '.join(duration_div.text.strip().split())
+            episode.append(duration)
+        else:
+            episode.append(None)
+        
+        time.sleep(2)  # Attend 2 secondes avant de faire une autre requête
+    return filtered_episodes
+
+def display_data(episodes):
+    """Affiche les données des épisodes à la console."""
+    for episode in episodes:
+        date, country, channel, series_name, season, episode_num, url_episode, duration = episode
+        print(f"{series_name} (Saison {season} Épisode {episode_num}) - {duration} - {url_episode}")
+
 def main():
+    print("Début du script...")  # Nouveau print pour le débogage
+
     soup = fetch_web_data(BASE_URL + "calendrier_des_series.html")
+    print("Données web récupérées...")  # Nouveau print pour le débogage
+
     data_sorted = extract_series_info(soup)
+    print(f"Nombre total d'épisodes récupérés : {len(data_sorted)}")  # Nouveau print pour le débogage
 
-    # for item in data_sorted:
-    #     print(item)
+    # save_to_csv(data_sorted)
+    # print("Données sauvegardées dans le CSV...")  # Nouveau print pour le débogage
 
-    save_to_csv(data_sorted)
-    save_to_sqlite(data_sorted)
-    DATABASE_URL = 'postgres://cours_pytho_5421:F7XnoI1TH_KbiiwxghBE@cours-pytho-5421.postgresql.a.osc-fr1.scalingo-dbs.com:33800/cours_pytho_5421?sslmode=prefer'
-    save_to_postgresql(data_sorted, DATABASE_URL)
+    # save_to_sqlite(data_sorted)
+    # save_to_postgresql(data_sorted, DATABASE_URL)
+
     most_common_words = get_most_common_words(data_sorted)
-    print(most_common_words)  # Affiche les 10 mots les plus courants
+    print(most_common_words)
 
+    channels = set([item[2] for item in data_sorted])
+    print(f"Toutes les chaînes disponibles : {channels}")
+
+    apple_tv_episodes = extract_episode_duration(data_sorted, BASE_URL)
+    print(f"Nombre d'épisodes pour Apple TV : {len(apple_tv_episodes)}")  # Nouveau print pour le débogage
+
+    display_data(apple_tv_episodes)
 
 if __name__ == "__main__":
     main()
+
