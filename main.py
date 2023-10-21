@@ -21,9 +21,9 @@ def extract_series_info(soup):
     
     data = []
     for i, serie in enumerate(series_info):
-        country_img = serie.find_previous('img', alt=True)
+        country_img = serie.find_next('img', alt=True)
         country = country_img['alt']
-        channel_img = country_img.find_next('img', alt=True)
+        channel_img = country_img.find_previous('img', alt=True)
         channel = channel_img['alt']
         series_name = serie.find('a').text
         episode_details = serie.find('a', class_='liens').text
@@ -60,8 +60,8 @@ def save_to_sqlite(data_sorted):
     CREATE TABLE IF NOT EXISTS episode (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT,
-        channel TEXT,
         country TEXT,
+        channel TEXT,
         series_name TEXT,
         season INTEGER,
         episode INTEGER,
@@ -70,7 +70,7 @@ def save_to_sqlite(data_sorted):
     ''')
     for item in data_sorted:
         cursor.execute('''
-        INSERT INTO episode (date, channel, country, series_name, season, episode, url_episode)
+        INSERT INTO episode (date, country, channel, series_name, season, episode, url_episode)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', item)
     conn.commit()
@@ -85,8 +85,8 @@ def save_to_postgresql(data_sorted, database_url):
     CREATE TABLE IF NOT EXISTS episode (
         id SERIAL PRIMARY KEY,
         date TEXT,
-        channel TEXT,
         country TEXT,
+        channel TEXT,
         series_name TEXT,
         season INTEGER,
         episode INTEGER,
@@ -95,7 +95,7 @@ def save_to_postgresql(data_sorted, database_url):
     ''')
     for item in data_sorted:
         cursor.execute('''
-        INSERT INTO episode (date, channel, country, series_name, season, episode, url_episode)
+        INSERT INTO episode (date, country, channel, series_name, season, episode, url_episode)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', item)
     conn.commit()
@@ -114,57 +114,53 @@ def get_most_common_words(data_sorted):
     word_counts = Counter(words)
     return word_counts.most_common(10)
 
-def extract_episode_duration(data_sorted, base_url, channel_filter="Apple TV+"):
-    """Extrait la durée des épisodes pour une chaîne spécifique."""
-    filtered_episodes = [item for item in data_sorted if item[2] == channel_filter]
+def get_episode_duration(episode_url):
+    """Récupère la durée de l'épisode à partir de son URL."""
+    soup = fetch_web_data(episode_url)
     
-    for episode in filtered_episodes:
-        url_episode = episode[6]
-        soup = fetch_web_data(url_episode)
-        
-        # Cible la div contenant la durée
-        duration_div = soup.find('div', class_='episode_infos_episode_format')
-        if duration_div:
-            # Ici, nous extrayons le texte, le nettoyons et le joignons pour obtenir un format "25 minutes".
-            duration = ' '.join(duration_div.text.strip().split())
-            episode.append(duration)
-        else:
-            episode.append(None)
-        
-        time.sleep(2)  # Attend 2 secondes avant de faire une autre requête
-    return filtered_episodes
+    # Cible la div contenant la durée
+    duration_div = soup.find('div', class_='episode_infos_episode_format')
+    if duration_div:
+        # Ici, nous extrayons le texte, le nettoyons et le joignons pour obtenir un format "25 minutes".
+        duration = ' '.join(duration_div.text.strip().split())
+        return duration
+    else:
+        return None
 
-def display_data(episodes):
-    """Affiche les données des épisodes à la console."""
-    for episode in episodes:
-        date, country, channel, series_name, season, episode_num, url_episode, duration = episode
-        print(f"{series_name} (Saison {season} Épisode {episode_num}) - {duration} - {url_episode}")
 
 def main():
-    print("Début du script...")  # Nouveau print pour le débogage
+    print("Début du script...") 
 
     soup = fetch_web_data(BASE_URL + "calendrier_des_series.html")
-    print("Données web récupérées...")  # Nouveau print pour le débogage
+    print("Données web récupérées...")  
 
     data_sorted = extract_series_info(soup)
-    print(f"Nombre total d'épisodes récupérés : {len(data_sorted)}")  # Nouveau print pour le débogage
+    print(f"Nombre total d'épisodes récupérés : {len(data_sorted)}")  
+
+    # Filtrage des épisodes pour Apple TV+
+    apple_tv_episodes = [episode for episode in data_sorted if episode[2] == "Apple TV+"]
+    
+    # Récupération de la durée pour chaque épisode d'Apple TV+
+    for episode in apple_tv_episodes:
+        duration = get_episode_duration(episode[6])
+        episode = episode + (duration,)  # Ajout de la durée à l'épisode
+        time.sleep(2)  # Attend 2 secondes avant de faire une autre requête
+        print(f"Durée de l'épisode {episode[3]} : {duration}")
+        
 
     # save_to_csv(data_sorted)
-    # print("Données sauvegardées dans le CSV...")  # Nouveau print pour le débogage
+    # print("Données sauvegardées dans le CSV...")  
 
     # save_to_sqlite(data_sorted)
+    # print("Données sauvegardées dans dans la base sqlite...")
+
     # save_to_postgresql(data_sorted, DATABASE_URL)
+    # print("Données sauvegardées dans la base Scallingo...")
 
-    most_common_words = get_most_common_words(data_sorted)
-    print(most_common_words)
+    # most_common_words = get_most_common_words(data_sorted)
+    # print("Les 10 mots les plus courants dans les noms de séries :")
+    # print(most_common_words)
 
-    channels = set([item[2] for item in data_sorted])
-    print(f"Toutes les chaînes disponibles : {channels}")
-
-    apple_tv_episodes = extract_episode_duration(data_sorted, BASE_URL)
-    print(f"Nombre d'épisodes pour Apple TV : {len(apple_tv_episodes)}")  # Nouveau print pour le débogage
-
-    display_data(apple_tv_episodes)
 
 if __name__ == "__main__":
     main()
