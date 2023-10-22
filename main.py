@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import psycopg2
 import sqlite3
 import time
+from datetime import datetime, timedelta
 
 BASE_URL = "https://www.spin-off.fr/"
 DATABASE_URL = "postgres://cours_pytho_5421:F7XnoI1TH_KbiiwxghBE@cours-pytho-5421.postgresql.a.osc-fr1.scalingo-dbs.com:33800/cours_pytho_5421?sslmode=prefer"
@@ -52,8 +53,22 @@ def simple_type(value):
     }.get(t, t)
 
 
-def save_to_sqlite(data_sorted):
-    """Sauvegarde les données dans une base de données SQLite."""
+def get_episode_duration(episode_url):
+    """Récupère la durée de l'épisode à partir de son URL."""
+    soup = fetch_web_data(episode_url)
+    
+    # Cible la div contenant la durée
+    duration_div = soup.find('div', class_='episode_infos_episode_format')
+    if duration_div:
+        # Supprime les espaces en trop
+        duration = ' '.join(duration_div.text.strip().split())
+        return duration
+    else:
+        return None
+
+
+# Fonctions pour SQLite
+def create_episode_table_sqlite():
     conn = sqlite3.connect('data/databases/database.db')
     cursor = conn.cursor()
     cursor.execute('''
@@ -68,6 +83,11 @@ def save_to_sqlite(data_sorted):
         url_episode TEXT
     )
     ''')
+    conn.close()
+
+def insert_into_episode_sqlite(data_sorted):
+    conn = sqlite3.connect('data/databases/database.db')
+    cursor = conn.cursor()
     for item in data_sorted:
         cursor.execute('''
         INSERT INTO episode (date, country, channel, series_name, season, episode, url_episode)
@@ -76,9 +96,31 @@ def save_to_sqlite(data_sorted):
     conn.commit()
     conn.close()
 
+def create_duration_table_sqlite():
+    conn = sqlite3.connect('data/databases/database.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS duration (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        episode_id INTEGER,
+        duration TEXT,
+        FOREIGN KEY(episode_id) REFERENCES episode(id)
+    )
+    ''')
+    conn.close()
 
-def save_to_postgresql(data_sorted, database_url):
-    """Sauvegarde les données dans une base de données PostgreSQL."""
+def insert_duration_sqlite(episode_id, duration):
+    conn = sqlite3.connect('data/databases/database.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+    INSERT INTO duration (episode_id, duration)
+    VALUES (?, ?)
+    ''', (episode_id, duration))
+    conn.commit()
+    conn.close()
+
+# Fonctions pour PostgreSQL
+def create_episode_table_postgresql(database_url):
     conn = psycopg2.connect(database_url, sslmode='require')
     cursor = conn.cursor()
     cursor.execute('''
@@ -93,11 +135,46 @@ def save_to_postgresql(data_sorted, database_url):
         url_episode TEXT
     )
     ''')
+    conn.commit()
+    conn.close()
+
+def insert_into_episode_postgresql(data_sorted, database_url):
+    conn = psycopg2.connect(database_url, sslmode='require')
+    cursor = conn.cursor()
+    episode_ids = []
     for item in data_sorted:
         cursor.execute('''
         INSERT INTO episode (date, country, channel, series_name, season, episode, url_episode)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
+        RETURNING id;
         ''', item)
+        episode_id = cursor.fetchone()[0]
+        episode_ids.append(episode_id)
+    conn.commit()
+    conn.close()
+    return episode_ids
+
+def create_duration_table_postgresql(database_url):
+    conn = psycopg2.connect(database_url, sslmode='require')
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS duration (
+        id SERIAL PRIMARY KEY,
+        episode_id INTEGER,
+        duration TEXT,
+        FOREIGN KEY(episode_id) REFERENCES episode(id)
+    )
+    ''')
+    conn.commit()
+    conn.close()
+
+def insert_duration_postgresql(episode_id, duration, database_url):
+    conn = psycopg2.connect(database_url, sslmode='require')
+    cursor = conn.cursor()
+    cursor.execute('''
+    INSERT INTO duration (episode_id, duration)
+    VALUES (%s, %s)
+    ''', (episode_id, duration))
     conn.commit()
     conn.close()
 
@@ -114,18 +191,35 @@ def get_most_common_words(data_sorted):
     word_counts = Counter(words)
     return word_counts.most_common(10)
 
-def get_episode_duration(episode_url):
-    """Récupère la durée de l'épisode à partir de son URL."""
-    soup = fetch_web_data(episode_url)
-    
-    # Cible la div contenant la durée
-    duration_div = soup.find('div', class_='episode_infos_episode_format')
-    if duration_div:
-        # Ici, nous extrayons le texte, le nettoyons et le joignons pour obtenir un format "25 minutes".
-        duration = ' '.join(duration_div.text.strip().split())
-        return duration
-    else:
-        return None
+
+# Tentative de résolution de l'exercice : Algorithmie [2/2] non fonctionnelle
+# def calculate_consecutive_streaks(data_sorted):
+#     streaks = {}  # Dictionnaire pour stocker les séquences consécutives
+#     current_streaks = {}  # Dictionnaire pour stocker les séquences actuelles
+#     last_seen_date = {}  # Dictionnaire pour stocker la dernière date à laquelle nous avons vu une chaîne
+
+#     # Convertir les chaînes de date en objets datetime pour faciliter la comparaison
+#     for date_str, _, channel, *_ in data_sorted:
+#         date_parts = date_str.split()
+#         if len(date_parts) != 2:  # Vérifie que la date est bien formatée
+#             continue  # Ignore les dates mal formatées
+#         day, month = date_parts
+#         date_obj = datetime.strptime(f"{day} {month} 2023", "%d %B %Y")  # Supposition de l'année 2023
+
+#         if channel not in current_streaks:
+#             current_streaks[channel] = 0
+#             streaks[channel] = 0
+        
+#         if channel in last_seen_date:
+#             if date_obj - last_seen_date[channel] == timedelta(days=1):  # Si la date est consécutive
+#                 current_streaks[channel] += 1
+#                 streaks[channel] = max(streaks[channel], current_streaks[channel])
+#             else:
+#                 current_streaks[channel] = 1
+        
+#         last_seen_date[channel] = date_obj
+
+#     return streaks
 
 
 def main():
@@ -137,30 +231,56 @@ def main():
     data_sorted = extract_series_info(soup)
     print(f"Nombre total d'épisodes récupérés : {len(data_sorted)}")  
 
-    # Filtrage des épisodes pour Apple TV+
+    most_common_words = get_most_common_words(data_sorted)
+    print("Les 10 mots les plus courants dans les noms de séries :")
+    print(most_common_words)
+       
+
+    save_to_csv(data_sorted)
+    print("Données sauvegardées dans le CSV...")  
+
+    # Pour PostgreSQL
+    create_episode_table_postgresql(DATABASE_URL)
+    print("Table 'episode' créée dans la base de données PostgreSQL...")
+    episode_ids = insert_into_episode_postgresql(data_sorted, DATABASE_URL)
+    print("Données insérées dans la table 'episode' de la base de données PostgreSQL...")
+    create_duration_table_postgresql(DATABASE_URL)
+    print("Table 'duration' créée dans la base de données PostgreSQL...")
+
     apple_tv_episodes = [episode for episode in data_sorted if episode[2] == "Apple TV+"]
-    
-    # Récupération de la durée pour chaque épisode d'Apple TV+
-    for episode in apple_tv_episodes:
+
+    for episode_id, episode in zip(episode_ids, apple_tv_episodes):
         duration = get_episode_duration(episode[6])
-        episode = episode + (duration,)  # Ajout de la durée à l'épisode
-        time.sleep(2)  # Attend 2 secondes avant de faire une autre requête
-        print(f"Durée de l'épisode {episode[3]} : {duration}")
-        
+        if duration:
+            insert_duration_postgresql(episode_id, duration, DATABASE_URL)
+            # print(f"Durée de l'épisode {episode[3]} : {duration}")
+    print("Données insérées dans la table 'duration' de la base de données PostgreSQL...")
 
-    # save_to_csv(data_sorted)
-    # print("Données sauvegardées dans le CSV...")  
+    # Pour SQLite
+    create_episode_table_sqlite()
+    print("Table 'episode' créée dans la base de données SQLite...")
+    insert_into_episode_sqlite(data_sorted)
+    print("Données insérées dans la table 'episode' de la base de données SQLite...")
+    create_duration_table_sqlite()
+    print("Table 'duration' créée dans la base de données SQLite...")
+    for episode_id, episode in zip(range(1, len(apple_tv_episodes) + 1), apple_tv_episodes):
+        duration = get_episode_duration(episode[6])
+        if duration:
+            insert_duration_sqlite(episode_id, duration)
 
-    # save_to_sqlite(data_sorted)
-    # print("Données sauvegardées dans dans la base sqlite...")
+    print("Données insérées dans la table 'duration' de la base de données SQLite...")
 
-    # save_to_postgresql(data_sorted, DATABASE_URL)
-    # print("Données sauvegardées dans la base Scallingo...")
 
-    # most_common_words = get_most_common_words(data_sorted)
-    # print("Les 10 mots les plus courants dans les noms de séries :")
-    # print(most_common_words)
+    # Tentative de résolution de l'exercice : Algorithmie [2/2] non fonctionnelle
+    # streaks = calculate_consecutive_streaks(data_sorted) 
 
+    # if streaks:
+    #     max_streak_channel = max(streaks, key=streaks.get)
+    #     print(f"La chaîne de TV avec le plus grand nombre de jours consécutifs est : {max_streak_channel} avec {streaks[max_streak_channel]} jours consécutifs.")
+    # else:
+    #     print("Aucune chaîne de TV n'a été trouvée avec des épisodes consécutifs.")
+
+    print("Fin du script...")
 
 if __name__ == "__main__":
     main()
